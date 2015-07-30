@@ -3,7 +3,6 @@
 module.exports = function(Bookshelf) {
 
   var _ = require('lodash');
-  _.str = require('underscore.string');
 
   function _parsed (attributes) {
     var parsed = {};
@@ -264,12 +263,12 @@ module.exports = function(Bookshelf) {
   var ParsedModel = Bookshelf.Model.extend({
     format: function (attrs) {
       return _.transform(attrs, function (result, val, key) {
-        result[_.str.underscored(key)] = val;
+        result[_.snakeCase(key)] = val;
       });
     },
     parse: function (attrs) {
       return _.transform(attrs, function (result, val, key) {
-        result[_.str.camelize(key)] = val;
+        result[_.camelCase(key)] = val;
       });
     }
   });
@@ -286,6 +285,49 @@ module.exports = function(Bookshelf) {
   var UserParsed = ParsedModel.extend({
     tableName: 'parsed_users',
   });
+
+
+  /**
+   * Issue #578 - lifecycle events on pivot model for belongsToMany().through()
+   *
+   * Here we bootstrap some models involved in a .belongsToMany().through()
+   * relationship. The models are overridden with actual relationship methods
+   * e.g. `lefts: function () { return this.belongsToMany(LeftModel).through(JoinModel) }`
+   * within the tests to ensure the appropriate lifecycle events are being
+   * triggered.
+   */
+
+  var LeftModel = Bookshelf.Model.extend({
+    tableName: 'lefts'
+  });
+
+  var RightModel = Bookshelf.Model.extend({
+    tableName: 'rights'
+  });
+
+  var JoinModel = Bookshelf.Model.extend({
+    tableName: 'lefts_rights',
+    defaults: { parsedName: '' },
+    format: function (attrs) {
+      return _.reduce(attrs, function(memo, val, key) {
+        memo[_.snakeCase(key)] = val;
+        return memo;
+      }, {});
+    },
+    parse: function (attrs) {
+      return _.reduce(attrs, function(memo, val, key) {
+        memo[_.camelCase(key)] = val;
+        return memo;
+      }, {});
+    },
+    lefts: function() {
+      return this.belongsTo(LeftModel);
+    },
+    rights: function() {
+      return this.belongsTo(RightModel);
+    }
+  });
+
 
   return {
     Models: {
@@ -312,7 +354,10 @@ module.exports = function(Bookshelf) {
       Settings: Settings,
       Instance: Instance,
       Hostname: Hostname,
-      Uuid: Uuid
+      Uuid: Uuid,
+      LeftModel: LeftModel,
+      RightModel: RightModel,
+      JoinModel: JoinModel
     }
   };
 

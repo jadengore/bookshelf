@@ -1,17 +1,16 @@
 var _    = require('lodash');
 var uuid = require('node-uuid');
 
-_.str = require('underscore.string');
+var Promise   = global.testPromise;
 
-var Promise = global.testPromise;
-var equal = require('assert').equal;
+var assert    = require('assert')
+var equal     = require('assert').equal;
 var deepEqual = require('assert').deepEqual;
 
 module.exports = function(bookshelf) {
 
   describe('Model', function() {
 
-    var Backbone  = require('backbone');
     var Models    = require('./helpers/objects')(bookshelf).Models;
 
     var stubSync = {
@@ -37,8 +36,15 @@ module.exports = function(bookshelf) {
         classMethod2: function() { return 'test2'; }
       });
 
+      var OtherUser = bookshelf.Model.extend({
+        idAttribute: 'user_id',
+        getData: function() { return 'test'; }
+      }, {
+        classMethod: function() { return 'test'; }
+      });
+
       it('can be extended', function() {
-        var user = new User();
+        var user = new User({name: "hoge"});
         var subUser = new SubUser();
         expect(user.idAttribute).to.equal('user_id');
         expect(user.getData()).to.equal('test');
@@ -59,10 +65,47 @@ module.exports = function(bookshelf) {
       });
 
       it('doesnt have ommitted Backbone properties', function() {
-        expect(User.prototype.changedAttributes).to.be.undefined;
-        expect((new User()).changedAttributes).to.be.undefined;
+        equal(User.prototype.changedAttributes, undefined);
+        equal((new User()).changedAttributes, undefined);
       });
 
+      context('should have own errors: name of', function(){
+        it('NotFoundError', function(){
+          var err = new User.NotFoundError();
+          var suberr = new SubUser.NotFoundError();
+          expect(User.NotFoundError).to.not.be.eql(bookshelf.Model.NotFoundError);
+          expect(err).to.be.an.instanceof(bookshelf.Model.NotFoundError);
+          expect(User.NotFoundError).to.not.be.eql(SubUser.NotFoundError);
+          expect(err).to.not.be.an.instanceof(SubUser.NotFoundError);
+          expect(suberr).to.be.an.instanceof(User.NotFoundError);
+          expect(User.NotFoundError).to.not.be.eql(OtherUser.NotFoundError);
+          expect(err).to.not.be.an.instanceof(OtherUser.NotFoundError);
+        });
+
+        it('NoRowsUpdatedError', function(){
+          var err = new User.NoRowsUpdatedError();
+          var suberr = new SubUser.NoRowsUpdatedError();
+          expect(User.NoRowsUpdatedError).to.not.be.eql(bookshelf.Model.NoRowsUpdatedError);
+          expect(err).to.be.an.instanceof(bookshelf.Model.NoRowsUpdatedError);
+          expect(User.NoRowsUpdatedError).to.not.be.eql(SubUser.NoRowsUpdatedError);
+          expect(err).to.not.be.an.instanceof(SubUser.NoRowsUpdatedError);
+          expect(suberr).to.be.an.instanceof(User.NoRowsUpdatedError);
+          expect(User.NoRowsUpdatedError).to.not.be.eql(OtherUser.NoRowsUpdatedError);
+          expect(err).to.not.be.an.instanceof(OtherUser.NoRowsUpdatedError);
+        });
+
+        it('NoRowsDeletedError', function(){
+          var err = new User.NoRowsDeletedError();
+          var suberr = new SubUser.NoRowsDeletedError();
+          expect(User.NoRowsDeletedError).to.not.be.eql(bookshelf.Model.NoRowsDeletedError);
+          expect(err).to.be.an.instanceof(bookshelf.Model.NoRowsDeletedError);
+          expect(User.NoRowsDeletedError).to.not.be.eql(SubUser.NoRowsDeletedError);
+          expect(err).to.not.be.an.instanceof(SubUser.NoRowsDeletedError);
+          expect(suberr).to.be.an.instanceof(User.NoRowsDeletedError);
+          expect(User.NoRowsDeletedError).to.not.be.eql(OtherUser.NoRowsDeletedError);
+          expect(err).to.not.be.an.instanceof(OtherUser.NoRowsDeletedError);
+        });
+      });
     });
 
     describe('forge', function() {
@@ -90,17 +133,6 @@ module.exports = function(bookshelf) {
         });
         var test2 = new Test({_id: 2});
         equal(test2.id, (2));
-      });
-
-    });
-
-    describe('get', function() {
-
-      it('should use the same get method as the Backbone library', function() {
-        var attached = ['get'];
-        _.each(attached, function(item) {
-          deepEqual(bookshelf.Model.prototype[item], Backbone.Model.prototype[item]);
-        });
       });
 
     });
@@ -226,7 +258,7 @@ module.exports = function(bookshelf) {
           tableName: 'test',
           format: function(attrs) {
             return _.reduce(attrs, function(memo, val, key) {
-              memo[_.str.underscored(key)] = val;
+              memo[_.snakeCase(key)] = val;
               return memo;
             }, {});
           }
@@ -282,13 +314,15 @@ module.exports = function(bookshelf) {
         model.on('fetching', function() {
           throw new Error('This failed');
         });
-        return expect(model.fetch()).to.be.rejected;
+        return model.fetch().throw(new Error('Err')).catch(function(err) {
+          assert(err.message === 'This failed')
+        })
       });
 
       it('allows access to the query builder on the options object in the fetching event', function() {
         var model = new Site({id: 1});
         model.on('fetching', function(model, columns, options) {
-          expect(options.query.whereIn).to.be.a.function;
+          assert(typeof options.query.whereIn === 'function')
         });
         return model.fetch();
       });
@@ -298,8 +332,7 @@ module.exports = function(bookshelf) {
         model.query(function (qb) {
           qb.join('authors', 'authors.site_id', '=', 'sites.id');
         });
-
-        return expect(model.fetch()).to.be.fulfilled;
+        return model.fetch()
       });
 
     });
@@ -350,9 +383,13 @@ module.exports = function(bookshelf) {
         return new Site({id: 200, name: 'This doesnt exist'}).save().then(function() {
           throw new Error('This should not succeed');
         }, function(err) {
-          expect(err.message).to.equal('No rows were affected in the update, did you mean to pass the {method: "insert"} option?');
+          expect(err.message).to.equal('No Rows Updated');
         });
 
+      });
+
+      it('does not error if if the row was not updated but require is false', function() {
+        return new Site({id: 200, name: 'This doesnt exist'}).save({}, {require: false});
       });
 
       it('should not error if updated row was not affected', function() {
@@ -519,9 +556,15 @@ module.exports = function(bookshelf) {
           return sync;
         };
         m.on('destroying', function(model, options) {
-          expect(options.query.whereIn).to.be.a.function;
+          assert(typeof options.query.whereIn === "function");
         });
         return m.destroy();
+      });
+
+      it('will throw an error when trying to destroy a non-existent object with {require: true}', function() {
+        return new Site({id: 1337}).destroy({require: true}).catch(function(err) {
+          assert(err instanceof bookshelf.NoRowsDeletedError)
+        })
       });
 
     });
@@ -699,9 +742,6 @@ module.exports = function(bookshelf) {
       it('will return the previous value of an attribute the last time it was synced', function() {
         var count = 0;
         var model = new Models.Site({id: 1});
-        model.on('change', function() {
-          count++;
-        });
         equal(model.previous('id'), void 0);
 
         return model.fetch().then(function() {
@@ -711,7 +751,7 @@ module.exports = function(bookshelf) {
           equal(model.previous('id'), 1);
           deepEqual(model.changed, {id: 2});
           model.set('id', 1);
-          equal(count, 1);
+          deepEqual(model.changed, {});
         });
 
       });
@@ -723,7 +763,7 @@ module.exports = function(bookshelf) {
       it('will determine whether an attribute, or the model has changed', function() {
 
         return new Models.Site({id: 1}).fetch().then(function(site) {
-          expect(site.hasChanged()).to.be.false;
+          equal(site.hasChanged(), false);
           site.set('name', 'Changed site');
           equal(site.hasChanged('name'), true);
           deepEqual(site.changed, {name: 'Changed site'});
