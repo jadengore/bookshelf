@@ -1,10 +1,12 @@
-var Promise = global.testPromise;
+var Promise   = global.testPromise;
+
+var assert    = require('assert')
+var equal     = assert.equal
+var deepEqual = assert.deepEqual
 
 module.exports = function(bookshelf) {
 
   describe('Collection', function() {
-
-    var Backbone = require('backbone');
 
     var output  = require('./output/Collection');
     var dialect = bookshelf.knex.client.dialect;
@@ -31,6 +33,19 @@ module.exports = function(bookshelf) {
     var User     = Models.User;
     var Role     = Models.Role;
     var Photo    = Models.Photo;
+
+    describe('extend', function() {
+      it ('should have own EmptyError', function() {
+        var Sites = bookshelf.Collection.extend({model: Site});
+        var OtherSites = bookshelf.Collection.extend({model: Site});
+
+        var err = new Sites.EmptyError();
+        expect(Sites.EmptyError).to.not.be.eql(bookshelf.Collection.EmptyError);
+        expect(Sites.EmptyError).to.not.be.eql(OtherSites.EmptyError);
+        expect(Sites.EmptyError).to.not.be.eql(OtherSites.EmptyError);
+        expect(err).to.be.an.instanceof(bookshelf.Collection.EmptyError);
+      });
+    });
 
     describe('fetch', function() {
 
@@ -61,17 +76,21 @@ module.exports = function(bookshelf) {
           .query({where: {id: 40}})
           .fetchOne()
           .then(function(model) {
-            expect(model).to.be.null;
+            equal(model, null);
           });
 
       });
 
       it ('follows the typical model options, like require: true', function() {
 
-        return expect(new Site({id:1})
+        return new Site({id:1})
           .authors()
           .query({where: {id: 40}})
-          .fetchOne({require: true})).to.be.rejected;
+          .fetchOne({require: true})
+          .throw(new Error())
+          .catch(function(err) {
+            assert(err instanceof Author.NotFoundError, 'Error is a Site.NotFoundError')
+          });
 
       });
 
@@ -81,7 +100,7 @@ module.exports = function(bookshelf) {
 
       it('creates a new instance of Sync', function(){
         var model = new bookshelf.Model();
-        expect(model.sync(model)).to.be.an.instanceOf(require('../../lib/sync'));
+        assert(model.sync(model) instanceof require('../../lib/sync'));
       });
 
     });

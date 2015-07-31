@@ -5,9 +5,9 @@
   <meta http-equiv="X-UA-Compatible" content="chrome=1" />
   <meta name="viewport" content="width=device-width">
   <link rel="canonical" href="http://bookshelfjs.org" />
-  <link rel="icon" href="/docs/images/favicon.ico" />
-  <link rel="stylesheet" href="/docs/assets/style.css">
-  <link rel="stylesheet" href="/docs/assets/highlight.min.css">
+  <link rel="icon" href="docs/images/favicon.ico" />
+  <link rel="stylesheet" href="docs/assets/style.css">
+  <link rel="stylesheet" href="docs/assets/highlight.min.css">
   <title>Bookshelf.js - a Javascript ORM for Node.js for PostgreSQL, MySQL, and SQLite3</title>
 <!--
 ._.                                                      ._.
@@ -27,7 +27,7 @@
   <div id="sidebar" class="interface">
 
     <a class="toc_title" href="#">
-      Bookshelf.js <span class="version">(0.7.9)</span>
+      Bookshelf.js <span class="version">(0.8.1)</span>
     </a>
     <ul class="toc_section">
       <li>&raquo; <a href="http://github.com/tgriesser/bookshelf">GitHub Repository</a></li>
@@ -86,6 +86,8 @@
       <li>– <a href="#Model-toJSON">toJSON</a></li>
       <li>– <a href="#Model-Backbone-Methods"><b>Other Backbone Methods (4)</b></a></li>
       <li>– <a href="#Model-Underscore-Methods"><b>Underscore Methods (6)</b></a></li>
+      <li>– <a href="#Model-where">where</a></li>
+      <li>– <a href="#Model-query">query</a></li>
       <li>– <a href="#Model-resetQuery">resetQuery</a></li>
       <li>– <a href="#Model-hasTimestamps">hasTimestamps</a></li>
       <li>– <a href="#Model-timestamp">timestamp</a></li>
@@ -172,7 +174,7 @@
 
   </div>
 
-  <a href="https://github.com/tgriesser/bookshelf"><img style="position: fixed; top: 0; right: 0; border: 0;" src="/docs/images/github.png" alt="Fork me on GitHub"></a>
+  <a href="https://github.com/tgriesser/bookshelf"><img style="position: fixed; top: 0; right: 0; border: 0;" src="docs/images/github.png" alt="Fork me on GitHub"></a>
 
   <div class="container">
 
@@ -195,7 +197,7 @@
       and has a comprehensive <a href="https://travis-ci.org/tgriesser/bookshelf">test suite</a>.
     </p>
 
-    <h2>Latest Release: 0.7.9 - <span class="small"><a href="#changelog">Change Log</a></span></h2>
+    <h2>Latest Release: 0.8.1 - <span class="small"><a href="#changelog">Change Log</a></span></h2>
 
     <p>
       Current Develop &mdash;
@@ -215,30 +217,14 @@
       or send tweets to <a href="http://twitter.com/tgriesser">@tgriesser</a>.
     </p>
 
-    <p>
-      Bookshelf's dependencies are listed in the <tt>package.json</tt> file, but include
-      <a target="_blank" href="http://backbonejs.org">Backbone.js</a>,
-      <a target="_blank" href="http://lodash.com/">Lo-dash</a>,
-      <a target="_blank" href="https://github.com/petkaantonov/bluebird">bluebird</a>
-      for promise flow control, <a target="_blank" href="http://knexjs.org">Knex.js.</a> as the query
-      builder foundation, and <a target="_blank" href="https://github.com/dreamerslab/node.inflection">inflection</a>
-      for crafting intelligent defaults for related key and table names.
-    </p>
-
-    <p class="warning">
-      Special thanks to <a target="_blank" href="https://twitter.com/taylorotwell">Taylor Otwell</a> and his work
-      on the <a target="_blank" href="http://laravel.com/docs/eloquent">Eloquent ORM</a>, which has heavily
-      influenced the library's design.
-    </p>
-
     <h2 id="introduction">Introduction</h2>
 
     <p>
       Bookshelf aims to provide a simple library for common tasks when querying databases in javascript,
       and forming relations between these objects, taking a lot of ideas from the
       the <a href="http://en.wikipedia.org/wiki/Data_mapper_pattern">Data Mapper Pattern</a>.
-      With a <a href="docs/bookshelf.html">concise, literate codebase</a>, Bookshelf is simple to
-      read, understand, and extend. It doesn't force you to use any specific validation scheme,
+      With a concise, literate codebase, Bookshelf is simple to read, understand, and extend. 
+      It doesn't force you to use any specific validation scheme,
       provides flexible and efficient relation/nested-relation loading, and first class transaction support.
       It's a lean Object Relational Mapper, allowing you to drop down to the raw knex interface whenever you need a custom query that doesn't quite fit with the stock conventions.
     </p>
@@ -296,19 +282,16 @@ var User = bookshelf.Model.extend({
   <p>
     This initialization should likely only ever happen once in your application, as it creates a connection pool for the current database, you should use the <tt>bookshelf</tt> instance returned throughout your library.
 
-    You'll need to store this instance created by the initialize somewhere in the application you can reference it. A common pattern to follow if you're using <b>express.js</b> is to set the client as a property on the app instance when your application starts, so you can easily reference it later:
+    You'll need to store this instance created by the initialize somewhere in the application you can reference it. A common pattern to follow is to initialize the client in a module so you can easily reference it later:
   </p>
 
 <pre><code>
-// When the app starts
-var app = express();
+// In a file named something like bookshelf.js
 var knex = require('knex')(dbConfig);
-var bookshelf = require('bookshelf')(knex);
-
-app.set('bookshelf', bookshelf);
+module.exports require('bookshelf')(knex);
 
 // elsewhere, to use the bookshelf client:
-var bookshelf = app.get('bookshelf');
+var bookshelf = require('./bookshelf');
 
 var Post = bookshelf.Model.extend({
   // ...
@@ -461,7 +444,7 @@ var Books = bookshelf.Model.extend({
 </code></pre>
 
     <p>
-      The<tt>tableName</tt> and <tt>hasTimestamps</tt> properties
+      The <tt>tableName</tt> and <tt>hasTimestamps</tt> properties
       will be directly attached if passed in the <b>options</b> during model creation.
     </p>
 
@@ -494,7 +477,8 @@ var Television = bookshelf.Model.extend({
       (to have your model's attributes in <tt>camelCase</tt>,
       but your database's columns in <tt>snake_case</tt>, for example)
       this refers to the name returned by <b>parse</b> (<tt>myId</tt>),
-      not the database column (<tt>my_id</tt>).
+      not the database column (<tt>my_id</tt>). Specify compound primary
+      keys as an array of columns.
     </p>
 
     <p id="Model-id">
@@ -635,6 +619,8 @@ var Author = bookshelf.Model.extend({tableName: 'authors'});
 
 var Owner  = bookshelf.Model.extend({tableName: 'owners'});
 
+var Pages  = bookshelf.Model.extend({tableName: 'pages'});
+
 var Book = bookshelf.Model.extend({
   summary: function() {
     return this.hasOne(Summary);
@@ -746,8 +732,8 @@ Story.where({id: 2}).fetch({
       <br />
       A one-to-one relation is a very basic relation, where the <b>model</b> has exactly
       one of another <b>Target</b> model, referenced by a <b>foreignKey</b> in the <b>Target</b> model.
-      By default, the <b>foreignkey</b> is assumed to be the singular form of the current model's <a href="#Model-tableName">tableName</a>,
-      followed by <tt>_id</tt>.
+      By default, the <b>foreignKey</b> is assumed to be the singular form of the current model's <a href="#Model-tableName">tableName</a>,
+      followed by <tt>_id</tt> / <tt>_{{idAttribute}}</tt>.
     </p>
 
 <pre><code>
@@ -784,7 +770,7 @@ new Patient({id: 1}).record().fetch().then(function(model) {
       Typically the most common relationship type, a <tt>hasMany</tt> is when the <b>model</b>
       has a "one-to-many" relationship with the <b>Target</b> model or collection. The
       <b>model</b> is referenced by a <b>foreignKey</b> in the <b>Target</b> model, which defaults to the singular form of the current model's
-      <a href="#Model-tableName">tableName</a>, followed by <tt>_id</tt>.
+      <a href="#Model-tableName">tableName</a>, followed by <tt>_id</tt> / <tt>_{{idAttribute}}</tt>.
     </p>
 
     <p id="Model-belongsTo">
@@ -796,7 +782,7 @@ new Patient({id: 1}).record().fetch().then(function(model) {
       (and is the <i>one</i> side of that association). In both cases, the <tt>belongsTo</tt>
       relationship is used for a <b>model</b> that is a member of another <b>Target</b> model, referenced by the <b>foreignKey</b> in the current <b>model</b>.
       By default, the <b>foreignKey</b> is assumed to be the singular form of the <b>Target</b> model's <a href="#Model-tableName">tableName</a>,
-      followed by <tt>_id</tt>.
+      followed by <tt>_id</tt> / <tt>_{{idAttribute}}</tt>.
     </p>
 
 <pre><code>
@@ -847,7 +833,7 @@ var User = bookshelf.Model.extend({
 </code></pre>
 
     <p>
-      The default key names in the joining table are the singular versions of the model table names, followed by <tt>_id</tt>.
+      The default key names in the joining table are the singular versions of the model table names, followed by <tt>_id</tt> / <tt>_{{idAttribute}}</tt>.
       So in the above case, the columns in the joining table would be <tt>user_id</tt>, <tt>account_id</tt>, and
       <tt>access</tt>, which is used as an example of how dynamic relations can be formed using different contexts. To
       customize the keys used in, or the <tt>tableName</tt> used for the join table, you may specify them like so:
@@ -1008,6 +994,7 @@ var Tag = bookshelf.Model.extend({
 
     <p id="Model-updatePivot">
       <b class="header">updatePivot</b><code>relation.updatePivot(attrs, [options])</code>
+      <br />
       The <tt>updatePivot</tt> method is used exclusively on <a href="#Model-belongsToMany">belongsToMany</a>
       relations, and allows for updating pivot rows on the joining table. If you wish to confine the update clause,
       you may pass a <tt>query</tt> property on the options, which acts similar to the <a href="#Model-query">model.query</a> method.
@@ -1594,7 +1581,7 @@ exports.up = function(knex, Promise) {
 };
 
 exports.down = function(knex, Promise) {
-  return knex.schema.dropTable('books');
+  return knex.schema.dropTable('books')
     .dropTable('summaries');
 };
 </code></pre>
@@ -1906,7 +1893,7 @@ new Stories().fetch({
   withRelated: 'author'
 }).tap(function(stories) {
   if (req.withComments) return stories.load(['comments.tags', 'comments.author']);
-}).then(function() {
+}).then(function(stories) {
   console.log(JSON.stringify(stories));
 });
 </code></pre>
@@ -2227,11 +2214,11 @@ Bookshelf.transaction(function(t) {
         {title: 'Canterbury Tales'},
         {title: 'Moby Dick'},
         {title: 'Hamlet'}
-      ], function(model) {
+      ], function(info) {
 
         // Some validation could take place here.
-        return new Book(info).save('shelf_id', model.id, {transacting: t});
-      }));
+        return new Book(info).save({'shelf_id': model.id}, {transacting: t});
+      });
     });
 }).then(function(library) {
   console.log(library.related('books').pluck('title'));
@@ -2269,7 +2256,7 @@ Bookshelf.transaction(function(t) {
 
     <p id="faq-callbacks">
       <b class="header">Can I use standard node.js style callbacks.</b><br />
-      Yes - you can call <tt>.exec(function(err, resp) {</tt> on any "sync" method and
+      Yes - you can call <tt>.asCallback(function(err, resp) {</tt> on any "sync" method and
       use the standard <tt>(err, result)</tt> style callback interface if you prefer.
     </p>
 
@@ -2303,7 +2290,7 @@ Bookshelf.transaction(function(t) {
     </p>
 
     <p>
-      Bookshelf uses it's own copy of the "bluebird" promise library, you can read up <a href="https://github.com/petkaantonov/bluebird#error-handling">here</a> for more on debugging these promises... but in short, adding:
+      Bookshelf uses its own copy of the "bluebird" promise library, you can read up <a href="https://github.com/petkaantonov/bluebird#error-handling">here</a> for more on debugging these promises... but in short, adding:
     </p>
 
 <pre><code>
@@ -2337,6 +2324,35 @@ process.stderr.on('data', function(data) {
     </p>
 
     <h2 id="changelog">Change Log</h2>
+
+    <p>
+      <b class="header">0.8.1</b> &mdash; <small><i>May 12, 2015</i></small> &mdash; <a href="https://github.com/tgriesser/bookshelf/compare/0.8.0...0.8.1">Diff</a><br />
+    </p>
+
+    <ul>
+      <li>Fix for regression in <tt>initialize</tt> not being called in Collection constructor, #737.</li>
+      <li>Fix for regression, removing <tt>omitPivot</tt> in 0.8 #721</li>
+      <li>Added <tt>serialize</tt>, a method which contains toJSON logic for easier customization.</li>
+    </ul>
+
+    <p>
+      <b class="header">0.8.0</b> &mdash; <small><i>May 1, 2015</i></small> &mdash; <a href="https://github.com/tgriesser/bookshelf/compare/0.7.9...0.8.0">Diff</a><br />
+    </p>
+
+    <ul>
+      <li>Dropped Backbone dependency</li>
+      <li>More specific errors throughout, #522</li>
+      <li>Support {require: true} for model.destroy #617</li>
+      <li>Add lifecycle events on pivot models for belongsToMany, .through #578</li>
+      <li>Allows for select/column calls in the query builder closure, #633.</li>
+      <li>Added per-constructor error classes #694 (note: this will not work in CoffeeScript).</li>
+    </ul>
+
+    <b>Breaking changes:</b>
+    <ul>
+      <li>Removed the <tt>__super__</tt> internal property on the constructor, this shouldn't have been something you were relying on anyway.</li>
+    </ul>
+
 
     <p>
       <b class="header">0.7.9</b> &mdash; <small><i>Oct 28, 2014</i></small> &mdash; <a href="https://github.com/tgriesser/bookshelf/compare/0.7.8...0.7.9">Diff</a><br />
@@ -2766,11 +2782,15 @@ user.fetch({withRelated: ['accounts', {
     </div>
 
   </div>
-  <script src="/docs/assets/highlight.min.js"></script>
   <script src="docs/assets/ga.js" charset="utf-8"></script>
-  <script src="docs/assets/jquery.min.js"></script>
-  <script src="/browser/knex.js"></script>
-  <script src="/browser/bookshelf.js"></script>
+  
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/8.5/highlight.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/lodash.js/3.7.0/lodash.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/bluebird/2.9.24/bluebird.min.js"></script>
+  <script src="docs/assets/inflection.min.js"></script>
+  <script src="docs/assets/knex.min.js"></script>
+  <script src="build/bookshelf.js"></script>
 
   <script>
   hljs.configure({
