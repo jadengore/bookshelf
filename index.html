@@ -8,7 +8,7 @@
   <link rel="icon" href="docs/images/favicon.ico" />
   <link rel="stylesheet" href="docs/assets/style.css">
   <link rel="stylesheet" href="docs/assets/highlight.min.css">
-  <title>Bookshelf.js - a Javascript ORM for Node.js for PostgreSQL, MySQL, and SQLite3</title>
+  <title>Bookshelf.js - a JavaScript ORM for Node.js for PostgreSQL, MySQL, and SQLite3</title>
 <!--
 ._.                                                      ._.
 | |    ______             _        _          _  __      | |
@@ -57,8 +57,10 @@
       <li>– <a href="#Model-id">id</a></li>
       <li>– <a href="#Model-set">set</a></li>
       <li>– <a href="#Model-get">get</a></li>
+      <li>– <a href="#Model-refresh">refresh</a></li>
       <li>– <a href="#Model-fetch">fetch</a></li>
       <li>– <a href="#Model-fetchAll">fetchAll</a></li>
+      <li>– <a href="#Model-count">count</a></li>
       <li>– <a href="#Model-where">where</a></li>
       <li>– <a href="#Model-query">query</a></li>
       <li>– <a href="#Model-load">load</a></li>
@@ -121,6 +123,7 @@
       <li>– <a href="#Collection-toJSON">toJSON</a></li>
       <li>– <a href="#Collection-fetch">fetch</a></li>
       <li>– <a href="#Collection-fetchOne">fetchOne</a></li>
+      <li>– <a href="#Collection-count">count</a></li>
       <li>– <a href="#Collection-mapThen">mapThen</a></li>
       <li>– <a href="#Collection-invokeThen">invokeThen</a></li>
       <li>– <a href="#Collection-load">load</a></li>
@@ -183,7 +186,7 @@
     </p>
 
     <p>
-      <b>Bookshelf</b> is a javascript ORM for Node.js, built on the <a href="http://knexjs.org">Knex</a> SQL query builder. Featuring both <a href="http://promises-aplus.github.com/promises-spec/">promise based</a> and <a href="#faq-callbacks">traditional callback</a> interfaces, it follows the Model &amp; Collection patterns seen in Backbone.js, providing <a href="#Bookshelf-transaction">transaction support</a>,
+      <b>Bookshelf</b> is a JavaScript ORM for Node.js, built on the <a href="http://knexjs.org">Knex</a> SQL query builder. Featuring both <a href="http://promises-aplus.github.com/promises-spec/">promise based</a> and <a href="#faq-callbacks">traditional callback</a> interfaces, it follows the Model &amp; Collection patterns seen in Backbone.js, providing <a href="#Bookshelf-transaction">transaction support</a>,
       eager/nested-eager relation loading, <a href="#Model-polymorphic-associations">polymorphic associations</a>, and support for
       <a href="#Associations-one-to-one">one-to-one</a>, <a href="#Associations-one-to-many">one-to-many</a>, and <a href="#Associations-many-to-many">many-to-many</a> relations.
     </p>
@@ -197,7 +200,7 @@
       and has a comprehensive <a href="https://travis-ci.org/tgriesser/bookshelf">test suite</a>.
     </p>
 
-    <h2>Latest Release: 0.8.1 - <span class="small"><a href="#changelog">Change Log</a></span></h2>
+    <h2>Latest Release: 0.8.2 - <span class="small"><a href="#changelog">Change Log</a></span></h2>
 
     <p>
       Current Develop &mdash;
@@ -220,7 +223,7 @@
     <h2 id="introduction">Introduction</h2>
 
     <p>
-      Bookshelf aims to provide a simple library for common tasks when querying databases in javascript,
+      Bookshelf aims to provide a simple library for common tasks when querying databases in JavaScript,
       and forming relations between these objects, taking a lot of ideas from the
       the <a href="http://en.wikipedia.org/wiki/Data_mapper_pattern">Data Mapper Pattern</a>.
       With a concise, literate codebase, Bookshelf is simple to read, understand, and extend. 
@@ -288,7 +291,7 @@ var User = bookshelf.Model.extend({
 <pre><code>
 // In a file named something like bookshelf.js
 var knex = require('knex')(dbConfig);
-module.exports require('bookshelf')(knex);
+module.exports = require('bookshelf')(knex);
 
 // elsewhere, to use the bookshelf client:
 var bookshelf = require('./bookshelf');
@@ -511,10 +514,21 @@ customer.set("telephone", "555-555-1212");
       <tt>note.get("title")</tt>
     </p>
 
+    <p id="Model-refresh">
+      <b class="header">refresh</b><code>model.refresh([options]).then(function(model) {...</code>
+      <p>
+        Updates model attributes to match those currently in the database. If the model's <tt><a href="#Model-idAttribute">idAttribute</a></tt> is set, then it will do a <tt>select</tt> based on primary key alone. Otherwise it will default to <tt><a href="#Model-fetch">fetch</a></tt>'s behaviour of matching all given <tt><a href="#Model-attributes">attributes</a></tt>.
+      </p>
+      
+      <p>
+      Accepts the same options as <tt><a href="#Model-fetch">fetch</a></tt>; <tt>{require: true}</tt> to throw an error if the model is not found, and <tt>{columns: [...]}</tt> to only update certain columns.
+      </p>
+    </p>
+
     <p id="Model-fetch">
       <b class="header">fetch</b><code>model.fetch([options]).then(function(model) {...</code>
       <br />
-      Fetches a model from the database, using any attributes currently set on the model
+      Fetches a model from the database, using <em>all</em> attributes currently set on the model
       to form a <tt>select</tt> query. Returns a promise, which will resolve with the fetched <tt>model</tt>,
       or <tt>undefined</tt> if the model isn't fetched. If you wish to trigger an error if the fetched model is not found, pass <tt>{require: true}</tt> as one of the options to the fetch call. A <tt>"fetching"</tt> event will be fired just before the record is fetched; a good place to hook into for validation. A <tt>"fetched"</tt> event will be fired when a record is successfully retrieved. If you need to constrain the query performed by fetch, you can call the <a href="#Model-query">query</a> method before calling fetch.
     </p>
@@ -570,6 +584,17 @@ new Book({'ISBN-13': '9780440180296'}).fetch({
       <br />
       Fetches a <a href="#Collection">collection</a> of models from the database, using any <a href="#Model-query">query</a> parameters currently set on the model to form a <tt>select</tt> query. Returns a promise, which will resolve with the fetched <tt>collection</tt>. If you wish to trigger an error if no models are found, pass <tt>{require: true}</tt> as one of the options to the fetchAll call. A <tt>"fetching"</tt> event will be fired just before the collection is fetched; a good place to hook into for validations. A <tt>"fetched"</tt> event will be fired when a record is successfully retrieved. If you need to constrain the query performed by fetch, you can call the <a href="#Model-query">query</a> method before calling fetch.
     </p>
+
+    <p id="Model-count">
+      <b class="header">count</b><code>Model.count / model.count(column='*', [options]).then(function(count) { ...</code>
+      <br>
+      Gets the number of matching records in the database, respecting any previous calls to <a href="#Model-query">query</a>. If a <tt>column</tt> if provided, records with a null value in that column will be excluded from the count.
+
+<pre><code>
+// Get the number of named, blue ducks.
+Duck.where('color', 'blue').count('name')
+  .then(function(count) { //...
+</code></pre>
 
     <p id="Model-load">
       <b class="header">load</b><code>model.load(relations, [options]).then(function(model) {...</code>
@@ -777,7 +802,7 @@ new Patient({id: 1}).record().fetch().then(function(model) {
       <b class="header">belongsTo</b><code>model.belongsTo(Target, [foreignKey])</code>
       <br />
       The <tt>belongsTo</tt> relationship is used when a <b>model</b> is a member of another <b>Target</b> model. It can be used in a
-      <a href="#Associations-one-to-one">one-to-one</a> associations as the inverse of a <a href="#Model-hasOne">hasOne</a>. It can also used in
+      <a href="#Associations-one-to-one">one-to-one</a> associations as the inverse of a <a href="#Model-hasOne">hasOne</a>. It can also be used in
       <a href="#Associations-one-to-many">one-to-many</a> associations as the inverse of a <a href="#Model-hasMany">hasMany</a>
       (and is the <i>one</i> side of that association). In both cases, the <tt>belongsTo</tt>
       relationship is used for a <b>model</b> that is a member of another <b>Target</b> model, referenced by the <b>foreignKey</b> in the current <b>model</b>.
@@ -1239,6 +1264,14 @@ new Author({id: 1, first_name: 'User'})
       destroying the model and reject the promise. A <tt>"destroyed"</tt> event is fired after the model's removal
       is completed.
     </p>
+
+<pre><code>
+new User({id: 1})
+  .destroy()
+  .then(function(model) {
+    // ...
+  });
+</code></pre>
 
     <p id="Model-attributes">
       <b class="header">attributes</b><code>model.attributes</code>
@@ -1821,6 +1854,24 @@ new Site({id:1})
   });
 </code></pre>
 
+    <p id="Collection-count">
+      <b class="header">count</b><code>collection.count(column='*', [options])</code>
+      <br>
+      Get the number of records in the collection's table. Providing a <tt>column</tt>
+      value excludes records with a null value in that column.
+    </p>
+
+<pre><code>
+// select count(*) from shareholders where company_id = 1 and share &gt; 0.1;
+new Company({id:1})
+  .shareholders()
+  .query('where', 'share', '&gt;', '0.1')
+  .count()
+  .then(function(count) {
+    assert(count === 3);
+  });
+</code></pre>
+
     <p id="Collection-mapThen">
       <b class="header">mapThen</b><code>collection.mapThen(iterator, [context])</code>
       <br />
@@ -1911,16 +1962,17 @@ new Stories().fetch({
     </p>
 
 <pre class="runnable">
-var ships = new Backbone.Collection;
+var Ships = new bookshelf.Collection();
+Ships.model = Ship;
 
-ships.on("add", function(ship) {
-  alert("Ahoy " + ship.get("name") + "!");
-});
-
-ships.add([
+Ships.add([
   {name: "Flying Dutchman"},
   {name: "Black Pearl"}
 ]);
+
+Ships.fetch().then(function(resp) {
+
+});
 </code></pre>
 
     <p class="warning">
@@ -1959,13 +2011,10 @@ ships.add([
     </p>
 
 <pre><code>
-var vanHalen = new Backbone.Collection([eddie, alex, stone, roth]);
+var vanHalen = new bookshelf.Collection([eddie, alex, stone, roth]);
 
 vanHalen.set([eddie, alex, stone, hagar]);
 
-// Fires a "remove" event for roth, and an "add" event for "hagar".
-// Updates any of stone, alex, and eddie's attributes that may have
-// changed over the years.
 </code></pre>
 
     <p id="Collection-get">
@@ -2206,7 +2255,7 @@ collection
 <pre><code>
 var Promise = require('bluebird');
 
-Bookshelf.transaction(function(t) {
+bookshelf.transaction(function(t) {
   return new Library({name: 'Old Books'})
     .save(null, {transacting: t})
     .tap(function(model) {
@@ -2319,11 +2368,48 @@ process.stderr.on('data', function(data) {
     <p id="faq-nonode">
       <b class="header">Can I use Bookshelf outside of Node.js</b><br />
       While it primarily targets Node.js, all dependencies are browser compatible, and
-      it could be adapted to work with other javascript environments supporting a <tt>sqlite3</tt>
+      it could be adapted to work with other JavaScript environments supporting a <tt>sqlite3</tt>
       database, by providing a custom <a href="http://knexjs.org/#Adapters">Knex adapter</a>.
     </p>
 
     <h2 id="changelog">Change Log</h2>
+
+    <p>
+      <b class="header">0.8.2</b> &mdash; <small><i>August 20, 2015</i></small> &mdash; <a href="https://github.com/tgriesser/bookshelf/compare/0.8.2...master">Diff</a><br />
+    </p>
+
+    <ul>
+      <li>
+        ES6/7: Move code base to <tt>/src</tt> &mdash; code is now compiled into <tt>/lib</tt> via <a href="https://babeljs.io/">Babel</a>.
+      </li>
+      <li>
+        Add <tt>collection.count</tt>, <tt>model.count</tt> and <tt>Model.count</tt>.
+      </li>
+      <li>
+        Add <tt>model.refresh</tt>. #796
+      </li>
+      <li>
+        Prevent <tt>fetch</tt> and <tt>refresh</tt> from trying to add JSON attributes to a <tt>where</tt> clause. #550 #778
+      </li>
+      <li>
+        Virtuals plugin now supports <tt>{patch: true}</tt> argument to <tt>model.save</tt>. #542
+      </li>
+      <li>
+        Restored <tt>model.clone</tt> and <tt>collection.clone</tt>, which were not previously working. #744
+      </li>
+      <li>
+        Allow <tt>bookshelf.Collection</tt> to be modified and extended by plugins (so that relations and <tt>fetchAll</tt> operations will return the extended instance). #681 #688
+      </li>
+      <li>
+        Fix <tt>model.timestamps</tt> behaviour which deviated from documentation. Also ensure that <tt>createdAt</tt> is set when <tt>{method: "insert"}</tt> is passed explicitly. #787
+      </li>
+      <li>
+        Calling <tt>create</tt> on a <tt>through</tt> relationship no longer tries to make a pivot object. Previously this would attempt to create an object with invalid foreign keys. #768
+      </li>
+      <li>
+        Parse foreign keys set during <tt>create</tt> in a relation. #770
+      </li>
+    </ul>
 
     <p>
       <b class="header">0.8.1</b> &mdash; <small><i>May 12, 2015</i></small> &mdash; <a href="https://github.com/tgriesser/bookshelf/compare/0.8.0...0.8.1">Diff</a><br />

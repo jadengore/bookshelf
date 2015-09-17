@@ -21,6 +21,18 @@ module.exports = function(bookshelf) {
       del:    function() { return Promise.resolve({}); }
     };
 
+    var checkCount = function(ctx) {
+      var dialect = bookshelf.knex.client.dialect;
+      var formatNumber = {
+        mysql:      _.identity,
+        sqlite3:    _.identity,
+        postgresql: function(count) { return count.toString() }
+      }[dialect];
+      return function(actual, expected) {
+        expect(actual, formatNumber(expected));
+      }
+    };
+
     describe('extend/constructor/initialize', function() {
 
       var User = bookshelf.Model.extend({
@@ -290,9 +302,27 @@ module.exports = function(bookshelf) {
 
     });
 
+    describe('refresh', function() {
+      var Site = Models.Site;
+      
+      it('will fetch a record by present attributes without an ID attribute', function() {
+        Site.forge({name: 'knexjs.org'}).refresh().then(function (model) {
+          expect(model.id).to.equal(1);
+        });
+      });
+
+      it("will update a model's attributes by fetching only by `idAttribute`", function() {
+        Site.forge({id: 1, name: 'NOT THE CORRECT NAME'}).refresh().then(function (model) {
+          expect(model.get('name')).to.equal('knexjs.org');
+        });
+      });
+
+    });
+
     describe('fetch', function() {
 
       var Site = Models.Site;
+      var Author = Models.Author;
 
       it('issues a first (get one) to Knex, triggering a fetched event, returning a promise', function() {
         var count = 0;
@@ -333,6 +363,32 @@ module.exports = function(bookshelf) {
           qb.join('authors', 'authors.site_id', '=', 'sites.id');
         });
         return model.fetch()
+      });
+
+      it('allows specification of select columns as an `options` argument', function () {
+        var model = new Author({id: 1}).fetch({columns: ['first_name']})
+          .then(function (model) {
+            deepEqual(model.toJSON(), {id: 1, first_name: 'Tim'});
+          });
+      });
+
+      it('allows specification of select columns in query callback', function () {
+        var model = new Author({id: 1}).query('select','first_name').fetch()
+          .then(function (model) {
+            deepEqual(model.toJSON(), {id: 1, first_name: 'Tim'});
+          });
+      });
+
+      it('will still select default columns if `distinct` is called without columns - #807', function () {
+        var model = new Author({id: 1}).query('distinct').fetch()
+          .then(function (model) {
+            deepEqual(model.toJSON(), {
+              id: 1,
+              first_name: 'Tim',
+              last_name: 'Griesser',
+              site_id: 1
+            });
+          });
       });
 
     });
@@ -569,6 +625,49 @@ module.exports = function(bookshelf) {
 
     });
 
+    describe('count', function() {
+      it('counts the number of models in a collection', function() {
+        return Models.Post
+          .forge()
+          .count()
+          .then(function(count) {
+            checkCount(count, 5);
+          });
+      });
+
+      it('optionally counts by column (excluding null values)', function() {
+        var author = Models.Author.forge();
+        return author.count()
+          .then(function(count) {
+            checkCount(count, 5);
+            return author.count('last_name');
+          }).then(function(count) {
+            checkCount(count, 4);
+          });
+      });
+
+      it('counts a filtered query', function() {
+        return Models.Post
+          .forge()
+          .query('where', 'blog_id', 1)
+          .count()
+          .then(function(count) {
+            checkCount(count, 2);
+          });
+      });
+
+      it('resets query after completing', function() {
+        var posts =  Models.Post.collection();
+        posts.query('where', 'blog_id', 2).count()
+          .then(function(count)  {
+            checkCount(count, 2);
+            return posts.count();
+          })
+          .then(function(count) { checkCount(count, 2); });
+      });
+
+    });
+
     describe('resetQuery', function() {
 
       it('deletes the `_builder` property, resetting the model query builder', function() {
@@ -674,14 +773,31 @@ module.exports = function(bookshelf) {
     describe('timestamp', function() {
 
       it('will set the `updated_at` attribute to a date, and the `created_at` for new entries', function() {
-        var m  = new bookshelf.Model();
-        var m1 = new bookshelf.Model({id: 1});
-        var ts  = m.timestamp();
-        var ts2 = m1.timestamp();
-        equal(_.isDate(ts.created_at), true);
-        equal(_.isDate(ts.updated_at), true);
-        equal(_.isEmpty(ts2.created_at), true);
-        equal(_.isDate(ts2.updated_at), true);
+        var newModel      = new bookshelf.Model({}, {hasTimestamps: true});
+        var existingModel = new bookshelf.Model({id: 1}, {hasTimestamps: true});
+        newModel.timestamp();
+        existingModel.timestamp();
+        expect(newModel.get('created_at')).to.be.an.instanceOf(Date);
+        expect(newModel.get('updated_at')).to.be.an.instanceOf(Date);
+
+        expect(existingModel.get('created_at')).to.not.exist;
+        expect(existingModel.get('updated_at')).to.be.an.instanceOf(Date);
+      });
+
+      it('will set the `created_at` when inserting new entries', function() {
+        var model = new bookshelf.Model({id: 1}, {hasTimestamps: true});
+        model.timestamp({method: 'insert'});
+
+        expect(model.get('created_at')).to.be.an.instanceOf(Date);
+        expect(model.get('updated_at')).to.be.an.instanceOf(Date);
+      });
+
+      it('will not set timestamps on a model without `setTimestamps` set to true', function () {
+        var model = new bookshelf.Model();
+        model.timestamp();
+
+        expect(model.get('created_at')).to.not.exist;
+        expect(model.get('updated_at')).to.not.exist;
       });
     });
 
@@ -787,6 +903,14 @@ module.exports = function(bookshelf) {
 
     });
 
+    describe('Model.count', function() {
+      it('counts the number of matching records in the database', function() {
+        return Models.Post.count().then(function(count) {
+          checkCount(count, 5);
+        });
+      });
+    });
+
     describe('model.once', function() {
 
       var Post = Models.Post;
@@ -810,6 +934,18 @@ module.exports = function(bookshelf) {
 
       });
 
+    });
+
+    describe('model.clone', function() {
+      var Post = Models.Post;
+
+      it('should be equivalent when cloned', function() {
+        var original = Post.forge({author: 'Johnny', body: 'body'});
+        original.related('comments').add({email: 'some@email.com'});
+        var cloned = original.clone();
+
+        deepEqual(_.omit(cloned, 'cid'), _.omit(original, 'cid'));
+      });
     });
 
   });

@@ -47,6 +47,9 @@ module.exports = function(Bookshelf) {
     authors: function() {
       return this.hasMany(Author);
     },
+    authorsParsed: function() {
+      return this.hasMany(AuthorParsed);
+    },
     photos: function() {
       return this.morphMany(Photo, 'imageable');
     },
@@ -142,12 +145,10 @@ module.exports = function(Bookshelf) {
   var Post = Bookshelf.Model.extend({
     tableName: 'posts',
     defaults: {
-      author: '',
-      title: '',
-      body: '',
-      published: false
+      name: '',
+      content: ''
     },
-    hasTimestamps: true,
+    hasTimestamps: false,
     blog: function() {
       return this.belongsTo(Blog);
     },
@@ -175,7 +176,7 @@ module.exports = function(Bookshelf) {
     tableName: 'comments',
     defaults: {
       email: '',
-      post: ''
+      comment: ''
     },
     posts: function() {
       return this.belongsTo(Post);
